@@ -4,6 +4,10 @@
   "description": "Insert brainrot comments into your code",
   "version": "0.0.1",
   "publisher": "VMN16",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vnieder/Brainrot_VSC_Extension.git"
+  },
   "engines": {
     "vscode": "^1.106.0"
   },
