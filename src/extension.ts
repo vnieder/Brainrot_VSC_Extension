@@ -1,12 +1,8 @@
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 
-/**
- * Gets the appropriate comment syntax for a given language ID
- */
 function getCommentSyntax(languageId: string): string {
   const commentMap: { [key: string]: string } = {
-    // Single-line comments
     'javascript': '//',
     'typescript': '//',
     'javascriptreact': '//',
@@ -21,8 +17,6 @@ function getCommentSyntax(languageId: string): string {
     'kotlin': '//',
     'dart': '//',
     'scala': '//',
-    
-    // Hash comments
     'python': '#',
     'shellscript': '#',
     'bash': '#',
@@ -34,12 +28,8 @@ function getCommentSyntax(languageId: string): string {
     'r': '#',
     'lua': '--',
     'sql': '--',
-    
-    // HTML/XML comments
     'html': '<!--',
     'xml': '<!--',
-    
-    // CSS comments
     'css': '/*',
     'scss': '//',
     'sass': '//',
@@ -49,9 +39,6 @@ function getCommentSyntax(languageId: string): string {
   return commentMap[languageId] || '//';
 }
 
-/**
- * Gets the closing comment syntax if needed (for multi-line comments)
- */
 function getCommentClosing(languageId: string): string {
   if (languageId === 'html' || languageId === 'xml') {
     return ' -->';
@@ -64,21 +51,15 @@ function getCommentClosing(languageId: string): string {
 
 const API_KEY_SECRET_KEY = 'brainrot.claudeApiKey';
 
-/**
- * Gets the Anthropic API key from VS Code secret storage
- */
 async function getApiKey(context: vscode.ExtensionContext): Promise<string | undefined> {
   try {
     const apiKey = await context.secrets.get(API_KEY_SECRET_KEY);
-    return apiKey && apiKey.trim() !== '' ? apiKey : undefined;
+    return apiKey?.trim() || undefined;
   } catch (error) {
     return undefined;
   }
 }
 
-/**
- * Sets the Anthropic API key in VS Code secret storage
- */
 async function setApiKey(context: vscode.ExtensionContext): Promise<void> {
   const apiKey = await vscode.window.showInputBox({
     prompt: 'Enter your Anthropic Claude API Key',
@@ -106,10 +87,6 @@ async function setApiKey(context: vscode.ExtensionContext): Promise<void> {
   }
 }
 
-/**
- * Extracts code context from the editor selections
- * Returns the selected code text, limited to a reasonable size
- */
 function extractCodeContext(editor: vscode.TextEditor): string {
   const document = editor.document;
   const maxContextLength = 2000;
@@ -118,13 +95,11 @@ function extractCodeContext(editor: vscode.TextEditor): string {
   
   editor.selections.forEach((selection) => {
     if (!selection.isEmpty) {
-      // Get selected text
       const selectedText = document.getText(selection);
       if (contextText.length + selectedText.length <= maxContextLength) {
         contextText += (contextText ? '\n\n' : '') + selectedText;
       }
     } else {
-      // If no selection, get the current line
       const line = selection.active.line;
       const lineText = document.lineAt(line).text.trim();
       if (lineText && contextText.length + lineText.length <= maxContextLength) {
@@ -133,7 +108,6 @@ function extractCodeContext(editor: vscode.TextEditor): string {
     }
   });
   
-  // If still no context, get a few lines around the cursor
   if (!contextText && editor.selections.length > 0) {
     const firstSelection = editor.selections[0];
     const line = firstSelection.active.line;
@@ -151,9 +125,6 @@ function extractCodeContext(editor: vscode.TextEditor): string {
   return contextText || 'code';
 }
 
-/**
- * Generates a brainrot comment using Claude API based on the code context
- */
 async function generateBrainrotComment(codeContext: string, language: string, context: vscode.ExtensionContext): Promise<string> {
   const apiKey = await getApiKey(context);
   
@@ -162,7 +133,7 @@ async function generateBrainrotComment(codeContext: string, language: string, co
   }
   
   const anthropic = new Anthropic({
-    apiKey: apiKey,
+    apiKey,
   });
   
   const prompt = `You are a gen z software engineer that generates short, sarcastic, and sometimes mean brainrot-style given a code snippet. 
@@ -205,7 +176,6 @@ Return ONLY the comment text itself, without any code comment syntax (no //, #, 
       throw new Error('Empty response from Claude API');
     }
     
-    // Limit the response to 50 words max
     const words = responseText.split(/\s+/);
     const limitedText = words.slice(0, 50).join(' ');
     
@@ -223,9 +193,6 @@ Return ONLY the comment text itself, without any code comment syntax (no //, #, 
   }
 }
 
-/**
- * Inserts a brainrot comment at the beginning of the current line
- */
 async function addBrainrotComment(context: vscode.ExtensionContext) {
   const editor = vscode.window.activeTextEditor;
   
@@ -239,7 +206,6 @@ async function addBrainrotComment(context: vscode.ExtensionContext) {
   const commentSyntax = getCommentSyntax(languageId);
   const commentClosing = getCommentClosing(languageId);
   
-  // Show loading indicator
   const progressOptions: vscode.ProgressOptions = {
     location: vscode.ProgressLocation.Notification,
     title: 'Generating brainrot comment...',
@@ -249,18 +215,13 @@ async function addBrainrotComment(context: vscode.ExtensionContext) {
   let commentText: string;
   
   try {
-    // Extract code context
     const codeContext = extractCodeContext(editor);
-    
-    // Generate comment with progress indicator
     commentText = await vscode.window.withProgress(progressOptions, async () => {
       return await generateBrainrotComment(codeContext, languageId, context);
     });
   } catch (error: any) {
     const errorMessage = error.message || 'Failed to generate comment';
     vscode.window.showErrorMessage(`Brainrot Comment: ${errorMessage}`);
-    
-    // Fallback to hardcoded comment
     commentText = 'Brainrot comment';
   }
   
@@ -270,16 +231,9 @@ async function addBrainrotComment(context: vscode.ExtensionContext) {
     editor.selections.forEach((selection: vscode.Selection) => {
       const line = selection.active.line;
       const lineText = document.lineAt(line).text;
-      
-      // Find the indentation of the current line
       const indentationMatch = lineText.match(/^(\s*)/);
       const indentation = indentationMatch ? indentationMatch[1] : '';
-      
-      // Calculate the position at the beginning of the line (after indentation)
-      const lineStart = new vscode.Position(line, 0);
       const insertPosition = new vscode.Position(line, indentation.length);
-      
-      // Insert the comment
       editBuilder.insert(insertPosition, fullComment);
     });
   });
