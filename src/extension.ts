@@ -62,13 +62,48 @@ function getCommentClosing(languageId: string): string {
   return '';
 }
 
+const API_KEY_SECRET_KEY = 'brainrot.claudeApiKey';
+
 /**
- * Gets the Anthropic API key from VS Code settings
+ * Gets the Anthropic API key from VS Code secret storage
  */
-function getApiKey(): string | undefined {
-  const config = vscode.workspace.getConfiguration('brainrot');
-  const apiKey = config.get<string>('apiKey');
-  return apiKey && apiKey.trim() !== '' ? apiKey : undefined;
+async function getApiKey(context: vscode.ExtensionContext): Promise<string | undefined> {
+  try {
+    const apiKey = await context.secrets.get(API_KEY_SECRET_KEY);
+    return apiKey && apiKey.trim() !== '' ? apiKey : undefined;
+  } catch (error) {
+    return undefined;
+  }
+}
+
+/**
+ * Sets the Anthropic API key in VS Code secret storage
+ */
+async function setApiKey(context: vscode.ExtensionContext): Promise<void> {
+  const apiKey = await vscode.window.showInputBox({
+    prompt: 'Enter your Anthropic Claude API Key',
+    placeHolder: 'sk-ant-...',
+    password: true,
+    ignoreFocusOut: true,
+    validateInput: (value) => {
+      if (!value || value.trim() === '') {
+        return 'API key cannot be empty';
+      }
+      if (!value.startsWith('sk-ant-')) {
+        return 'API key should start with "sk-ant-"';
+      }
+      return null;
+    }
+  });
+
+  if (apiKey) {
+    try {
+      await context.secrets.store(API_KEY_SECRET_KEY, apiKey.trim());
+      vscode.window.showInformationMessage('Claude API key saved successfully!');
+    } catch (error) {
+      vscode.window.showErrorMessage(`Failed to save API key: ${error}`);
+    }
+  }
 }
 
 /**
@@ -119,11 +154,11 @@ function extractCodeContext(editor: vscode.TextEditor): string {
 /**
  * Generates a brainrot comment using Claude API based on the code context
  */
-async function generateBrainrotComment(codeContext: string, language: string): Promise<string> {
-  const apiKey = getApiKey();
+async function generateBrainrotComment(codeContext: string, language: string, context: vscode.ExtensionContext): Promise<string> {
+  const apiKey = await getApiKey(context);
   
   if (!apiKey) {
-    throw new Error('Anthropic API key not configured. Please set brainrot.apiKey in VS Code settings.');
+    throw new Error('Anthropic API key not configured. Please run "Brainrot: Set Claude API Key" command to set your API key.');
   }
   
   const anthropic = new Anthropic({
@@ -149,7 +184,7 @@ Return ONLY the comment text itself, without any code comment syntax (no //, #, 
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 50,
       messages: [
         {
@@ -174,7 +209,7 @@ Return ONLY the comment text itself, without any code comment syntax (no //, #, 
     return limitedText;
   } catch (error: any) {
     if (error.status === 401) {
-      throw new Error('Invalid Anthropic API key. Please check your brainrot.apiKey setting.');
+      throw new Error('Invalid Anthropic API key. Please run "Brainrot: Set Claude API Key" command to update your API key.');
     } else if (error.status === 429) {
       throw new Error('Rate limit exceeded. Please try again later.');
     } else if (error.message) {
@@ -188,7 +223,7 @@ Return ONLY the comment text itself, without any code comment syntax (no //, #, 
 /**
  * Inserts a brainrot comment at the beginning of the current line
  */
-async function addBrainrotComment() {
+async function addBrainrotComment(context: vscode.ExtensionContext) {
   const editor = vscode.window.activeTextEditor;
   
   if (!editor) {
@@ -216,7 +251,7 @@ async function addBrainrotComment() {
     
     // Generate comment with progress indicator
     commentText = await vscode.window.withProgress(progressOptions, async () => {
-      return await generateBrainrotComment(codeContext, languageId);
+      return await generateBrainrotComment(codeContext, languageId, context);
     });
   } catch (error: any) {
     const errorMessage = error.message || 'Failed to generate comment';
@@ -248,8 +283,11 @@ async function addBrainrotComment() {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  const disposable = vscode.commands.registerCommand('brainrot.addComment', addBrainrotComment);
-  context.subscriptions.push(disposable);
+  const addCommentDisposable = vscode.commands.registerCommand('brainrot.addComment', () => addBrainrotComment(context));
+  const setApiKeyDisposable = vscode.commands.registerCommand('brainrot.setApiKey', () => setApiKey(context));
+  
+  context.subscriptions.push(addCommentDisposable);
+  context.subscriptions.push(setApiKeyDisposable);
 }
 
 export function deactivate() {}

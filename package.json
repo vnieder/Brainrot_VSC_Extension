@@ -10,7 +10,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:brainrot.addComment"
+    "onCommand:brainrot.addComment",
+    "onCommand:brainrot.setApiKey"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -18,6 +19,10 @@
       {
         "command": "brainrot.addComment",
         "title": "Add Brainrot Comment"
+      },
+      {
+        "command": "brainrot.setApiKey",
+        "title": "Set Brainrot API Key"
       }
     ],
     "keybindings": [
@@ -27,18 +32,7 @@
         "mac": "cmd+shift+c",
         "when": "editorTextFocus"
       }
-    ],
-    "configuration": {
-      "title": "Brainrot Comment",
-      "properties": {
-        "brainrot.apiKey": {
-          "type": "string",
-          "default": "",
-          "description": "Anthropic API key for generating AI brainrot comments",
-          "scope": "application"
-        }
-      }
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
