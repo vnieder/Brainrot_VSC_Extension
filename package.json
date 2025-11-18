@@ -27,12 +27,26 @@
         "mac": "cmd+shift+c",
         "when": "editorTextFocus"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Brainrot Comment",
+      "properties": {
+        "brainrot.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API key for generating AI brainrot comments",
+          "scope": "application"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0"
   },
   "devDependencies": {
     "@types/vscode": "^1.74.0",
